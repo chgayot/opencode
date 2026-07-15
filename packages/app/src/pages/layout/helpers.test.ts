@@ -18,6 +18,8 @@ import {
   homeProjectDirectories,
   homeSessionServerStatus,
   latestRootSession,
+  sortSessions,
+  sortedRootSessions,
   toggleHomeProjectSelection,
 } from "./helpers"
 import { pathKey } from "@/utils/path-key"
@@ -317,5 +319,49 @@ describe("layout workspace helpers", () => {
     expect(errorMessage({ data: { message: "boom" } }, "fallback")).toBe("boom")
     expect(errorMessage(new Error("broken"), "fallback")).toBe("broken")
     expect(errorMessage("unknown", "fallback")).toBe("fallback")
+  })
+})
+
+describe("pinned session sorting", () => {
+  const now = 1_000_000
+  const sort = sortSessions(now)
+
+  test("pinned sessions sort before unpinned sessions", () => {
+    const pinned = session({ id: "a", directory: "/x", metadata: { pinned: true }, time: { created: 100, updated: 100 } })
+    const unpinned = session({ id: "b", directory: "/x", time: { created: 200, updated: 200 } })
+    expect(sort(pinned, unpinned)).toBeLessThan(0)
+    expect(sort(unpinned, pinned)).toBeGreaterThan(0)
+  })
+
+  test("pinned sessions sort by recency within the group", () => {
+    const a = session({ id: "a", directory: "/x", metadata: { pinned: true }, time: { created: 100, updated: 100 } })
+    const b = session({ id: "b", directory: "/x", metadata: { pinned: true }, time: { created: 200, updated: 200 } })
+    expect(sort(b, a)).toBeLessThan(0)
+  })
+
+  test("unpinned sessions sort by recency", () => {
+    const a = session({ id: "a", directory: "/x", time: { created: 100, updated: 200 } })
+    const b = session({ id: "b", directory: "/x", time: { created: 100, updated: 100 } })
+    expect(sort(a, b)).toBeLessThan(0)
+  })
+
+  test("uses created time as fallback when updated is equal", () => {
+    const a = session({ id: "a", directory: "/x", time: { created: 100, updated: 200 } })
+    const b = session({ id: "b", directory: "/x", time: { created: 300, updated: 100 } })
+    expect(sort(a, b)).toBeLessThan(0)
+    expect(sort(b, a)).toBeGreaterThan(0)
+  })
+
+  test("pinned sessions are included in sortedRootSessions", () => {
+    const store = {
+      path: { directory: "/x" },
+      session: [
+        session({ id: "a", directory: "/x", time: { created: 100, updated: 100 } }),
+        session({ id: "b", directory: "/x", metadata: { pinned: true }, time: { created: 200, updated: 200 } }),
+        session({ id: "c", directory: "/x", parentID: "parent", time: { created: 300, updated: 300 } }),
+      ],
+    }
+    const result = sortedRootSessions(store, now)
+    expect(result.map((s) => s.id)).toEqual(["b", "a"])
   })
 })

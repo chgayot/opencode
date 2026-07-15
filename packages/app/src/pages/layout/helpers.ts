@@ -3,15 +3,21 @@ import { type Session } from "@opencode-ai/sdk/v2/client"
 import { pathKey } from "@/utils/path-key"
 import type { ServerConnection } from "@/context/server"
 import type { HomeProjectSelection } from "@/context/layout"
+import { isPinned } from "@/utils/session-metadata"
 
 type SessionStore = {
   session?: Session[]
   path: { directory: string }
 }
 
-function sortSessions(now: number) {
+export function sortSessions(now: number) {
   const oneMinuteAgo = now - 60 * 1000
   return (a: Session, b: Session) => {
+    const aPinned = isPinned(a)
+    const bPinned = isPinned(b)
+    if (aPinned && !bPinned) return -1
+    if (!aPinned && bPinned) return 1
+
     const aUpdated = a.time.updated ?? a.time.created
     const bUpdated = b.time.updated ?? b.time.created
     const aRecent = aUpdated > oneMinuteAgo

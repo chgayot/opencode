@@ -50,6 +50,7 @@ import {
   getProjectAvatarSource,
   homeProjectDirectories,
   projectForSession,
+  sortSessions,
   sortedRootSessions,
   toggleHomeProjectSelection,
 } from "@/pages/layout/helpers"
@@ -69,6 +70,8 @@ import { archiveHomeSession } from "./home-session-archive"
 import { shouldOpenSessionInBackground } from "./home-session-open"
 import { showToast } from "@/utils/toast"
 import { fileManagerApp } from "@/utils/file-manager"
+import { isPinned, getSessionColor, togglePin, setSessionColor } from "@/utils/session-metadata"
+import { SessionColorPicker } from "@/pages/layout/session-color-picker"
 
 const HOME_SESSION_LIMIT = 64
 const HOME_SESSION_HEADER_STICKY_TOP = 12
@@ -119,7 +122,7 @@ function buildHomeSessionRecords(input: {
         .map((session) => [`${pathKey(session.directory)}:${session.id}`, session] as const),
     ).values(),
   ]
-    .sort((a, b) => (b.time.updated ?? b.time.created) - (a.time.updated ?? a.time.created))
+    .sort(sortSessions(Date.now()))
     .flatMap((session) => {
       const project = projectForSession(session, input.projects(), input.projectByID())
       if (!project) return []
@@ -525,6 +528,12 @@ export function NewHome() {
     })
   }
 
+  const updateSession = async (input: { sessionID: string; metadata: Record<string, unknown> }) => {
+    const ctx = focusedServerCtx()
+    if (!ctx) return
+    return ctx.sdk.client.session.update(input)
+  }
+
   function chooseProject(conn: ServerConnection.Any) {
     if (global.servers.health[ServerConnection.key(conn)]?.healthy === false) return
 
@@ -643,6 +652,7 @@ export function NewHome() {
                                 server={selection().server}
                                 openSession={openSession}
                                 archiveSession={archiveSession}
+                                updateSession={updateSession}
                               />
                             )}
                           </For>
@@ -1441,10 +1451,14 @@ function HomeSessionRow(props: {
   server: ServerConnection.Key
   openSession: (session: Session, options?: OpenSessionOptions) => void
   archiveSession: (session: Session) => Promise<void>
+  updateSession: (input: { sessionID: string; metadata: Record<string, unknown> }) => Promise<unknown>
 }) {
   const language = useLanguage()
   const title = createMemo(() => sessionTitle(props.record.session.title) || props.record.session.id)
   const showProjectName = () => props.showProjectName && props.record.projectName
+  const [colorState, setColorState] = createStore({ open: false })
+  const color = () => getSessionColor(props.record.session)
+  const hasActiveActions = () => isPinned(props.record.session) || !!color()
 
   return (
     <div
@@ -1454,7 +1468,7 @@ function HomeSessionRow(props: {
       <button
         type="button"
         data-component="home-session-row"
-        class={`${HOME_ROW} h-10 min-w-0 flex-1 gap-2 py-3 pl-3 pr-10`}
+        class={`${HOME_ROW} h-10 min-w-0 flex-1 gap-2 py-3 pl-3 pr-2`}
         onMouseDown={(event) => {
           if (event.button === 1) event.preventDefault()
         }}
@@ -1471,6 +1485,9 @@ function HomeSessionRow(props: {
           server={props.server}
           revealProjectOnHover={!!showProjectName()}
         />
+        <Show when={isPinned(props.record.session)}>
+          <IconV2 name="pin-filled" size="small" class="text-icon-weak shrink-0" />
+        </Show>
         <span
           class={`min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-v2-text-text-base [font-weight:530] ${showProjectName() ? "max-w-[min(70%,480px)] flex-[0_1_auto]" : "flex-[1_1_auto]"}`}
         >
@@ -1481,25 +1498,55 @@ function HomeSessionRow(props: {
             {props.record.projectName}
           </span>
         </Show>
-      </button>
-      <Show when={SHOW_HOME_SESSION_ARCHIVE}>
-        <div class="hover-reveal absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-1 group-hover/session:opacity-100 focus-within:opacity-100">
-          <TooltipV2 class="flex shrink-0 items-center" placement="bottom" value={language.t("common.archive")}>
+</button>
+      <div
+        class="hover-reveal absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-md bg-v2-background-bg-base px-0.5 group-hover/session:opacity-100 group-hover/session:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto group-hover/session:bg-v2-overlay-simple-overlay-hover focus-within:bg-v2-overlay-simple-overlay-hover data-[selected=true]:opacity-100 data-[selected=true]:pointer-events-auto"
+        data-selected={hasActiveActions() ? "true" : undefined}
+      >
+        <SessionColorPicker
+          current={color()}
+          open={colorState.open}
+          onOpenChange={(open) => setColorState("open", open)}
+          onSelect={(c) => {
+            void setSessionColor(props.record.session, c, props.updateSession)
+            setColorState("open", false)
+          }}
+        >
+          <TooltipV2 class="flex shrink-0 items-center" placement="bottom" value={color() ? language.t("common.removeColor") : language.t("common.setColor")}>
             <IconButtonV2
-              data-action="home-session-archive"
+              data-action="home-session-color"
               variant="ghost-muted"
               size="large"
-              icon={<IconV2 name="archive" />}
-              aria-label={language.t("common.archive")}
-              onClick={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                void props.archiveSession(props.record.session)
+              icon={<IconV2 name={color() ? "circle-solid" : "circle-outline"} style={color() ? { color: color() } : undefined} />}
+              aria-label={language.t("common.setColor")}
+              class="group-hover/session:opacity-100 group-hover/session:pointer-events-auto"
+              classList={{
+                "opacity-100 pointer-events-auto": !!color(),
+                "opacity-0 pointer-events-none": !color(),
               }}
             />
           </TooltipV2>
-        </div>
-      </Show>
+        </SessionColorPicker>
+        <TooltipV2 class="flex shrink-0 items-center" placement="bottom" value={isPinned(props.record.session) ? language.t("common.unpin") : language.t("common.pin")}>
+          <IconButtonV2
+            data-action="home-session-pin"
+            variant="ghost-muted"
+            size="large"
+            icon={<IconV2 name={isPinned(props.record.session) ? "pin-filled" : "pin"} />}
+            aria-label={language.t("common.pin")}
+            class="group-hover/session:opacity-100 group-hover/session:pointer-events-auto"
+            classList={{
+              "opacity-100 pointer-events-auto": isPinned(props.record.session),
+              "opacity-0 pointer-events-none": !isPinned(props.record.session),
+            }}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              void togglePin(props.record.session, props.updateSession)
+            }}
+          />
+        </TooltipV2>
+      </div>
     </div>
   )
 }

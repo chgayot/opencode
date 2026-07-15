@@ -10,7 +10,7 @@ export interface IconButtonProps extends ComponentProps<typeof Kobalte> {
 }
 
 export function IconButton(props: ComponentProps<"button"> & IconButtonProps) {
-  const [split, rest] = splitProps(props, ["variant", "size", "iconSize", "class", "classList"])
+  const [split, rest] = splitProps(props, ["variant", "size", "iconSize", "class", "classList", "style"])
   return (
     <Kobalte
       {...rest}
@@ -23,7 +23,7 @@ export function IconButton(props: ComponentProps<"button"> & IconButtonProps) {
         [split.class ?? ""]: !!split.class,
       }}
     >
-      <Icon name={props.icon} size={split.iconSize ?? (split.size === "large" ? "normal" : "small")} />
+      <Icon name={props.icon} size={split.iconSize ?? (split.size === "large" ? "normal" : "small")} style={split.style} />
     </Kobalte>
   )
 }

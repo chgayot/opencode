@@ -43,6 +43,17 @@
 
 ---
 
+## What's different in this fork
+
+This fork is based on the **V1 server interface** and focuses on keeping that simple, stable server model while improving how you organize your work in the app. The main changes:
+
+- **Conversation pinning** — Pin sessions in the sidebar so your most important or in-progress conversations stay at the top and out of the way of the recency-ordered history.
+- **Conversation colors** — Assign one of ten colors to any session to visually group related work at a glance, with a quick picker in the session menu.
+
+Both features are stored as plain session `metadata` (`pinned` and `color`), so they work with the existing V1 session API and require no changes to the server protocol.
+
+---
+
 ### Installation
 
 ```bash

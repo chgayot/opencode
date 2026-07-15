@@ -894,6 +894,10 @@ export default function LegacyLayout(props: ParentProps) {
     }
   }
 
+  const updateSession = async (input: { sessionID: string; metadata: Record<string, unknown> }) => {
+    return serverSDK().client.session.update(input)
+  }
+
   command.register("layout", () => {
     const commands: CommandOption[] = [
       {
@@ -1867,6 +1871,7 @@ export default function LegacyLayout(props: ParentProps) {
     clearHoverProjectSoon,
     prefetchSession,
     archiveSession,
+    updateSession,
     workspaceName,
     renameWorkspace,
     editorOpen,
@@ -1913,6 +1918,7 @@ export default function LegacyLayout(props: ParentProps) {
       clearHoverProjectSoon,
       prefetchSession,
       archiveSession,
+      updateSession,
     },
   }
 
