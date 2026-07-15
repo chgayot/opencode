@@ -540,8 +540,12 @@ export const { use: useMarked, provider: MarkedProvider } = createSimpleContext(
           if (!(lang in bundledLanguages)) {
             lang = "text"
           }
-          if (!highlighter.getLoadedLanguages().includes(lang)) {
-            await highlighter.loadLanguage(lang as BundledLanguage)
+          try {
+            if (!highlighter.getLoadedLanguages().includes(lang)) {
+              await highlighter.loadLanguage(lang as BundledLanguage)
+            }
+          } catch {
+            lang = "text"
           }
           return highlighter.codeToHtml(code, {
             lang: lang || "text",

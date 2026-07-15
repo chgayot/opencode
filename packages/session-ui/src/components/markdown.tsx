@@ -426,27 +426,18 @@ export function Markdown(
           }
 
           const hash = checksum(block.raw)
-          const safe = sanitizeMarkdown(await Promise.resolve(marked.parse(block.src)))
+          let safe: string
+          try {
+            safe = sanitizeMarkdown(await Promise.resolve(marked.parse(block.src)))
+          } catch (error) {
+            console.error("Markdown parse failed for block, rendering plain text fallback", { block, error })
+            safe = fallback(block.src)
+          }
           if (key && hash) touchCachedMarkdown(key, { raw: block.raw, hash, html: safe })
           return { key: blockKey, mode: block.mode, raw: block.raw, hash: hash ?? "", html: safe }
         }),
       )
         .then((blocks) => ({ text: src.text, blocks }) satisfies RenderResult)
-        .catch(
-          () =>
-            ({
-              text: src.text,
-              blocks: [
-                {
-                  key: base ?? "fallback",
-                  mode: "full" as const,
-                  raw: src.text,
-                  hash: checksum(src.text) ?? "",
-                  html: fallback(src.text),
-                },
-              ],
-            }) satisfies RenderResult,
-        )
     },
     {
       initialValue: initialResult(local.text, local.cacheKey, projection(), owner),
