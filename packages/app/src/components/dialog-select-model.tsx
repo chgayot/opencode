@@ -173,13 +173,14 @@ export function ModelSelectorPopover(props: {
       modal={false}
       placement="top-start"
       gutter={4}
+      fitViewport
     >
       <Kobalte.Trigger as={props.triggerAs ?? "div"} {...props.triggerProps}>
         {props.children}
       </Kobalte.Trigger>
       <Kobalte.Portal>
         <Kobalte.Content
-          class="w-72 h-80 flex flex-col p-2 rounded-md border border-border-base bg-surface-raised-stronger-non-alpha shadow-md z-50 outline-none overflow-hidden"
+          class="w-72 h-dvh max-h-dvh flex flex-col p-2 rounded-md border border-border-base bg-surface-raised-stronger-non-alpha shadow-md z-50 outline-none overflow-hidden"
           onEscapeKeyDown={(event) => {
             close("escape")
             event.preventDefault()
@@ -368,14 +369,14 @@ export function ModelSelectorPopoverV2(props: {
       <MenuV2.Portal>
         <MenuV2.Content
           ref={(el: HTMLDivElement) => (contentRef = el)}
-          class="w-[284px] overflow-hidden rounded-md border-0 bg-v2-background-bg-layer-01 !p-0 shadow-[var(--v2-elevation-floating)] focus:outline-none"
+          class="w-[284px] max-h-[100dvh] overflow-hidden rounded-md border-0 bg-v2-background-bg-layer-01 !p-0 shadow-[var(--v2-elevation-floating)] focus:outline-none flex flex-col"
           onPointerDownOutside={() => (restoreTrigger = false)}
           onFocusOutside={() => (restoreTrigger = false)}
           onCloseAutoFocus={(event) => {
             if (!restoreTrigger) event.preventDefault()
           }}
         >
-          <div class="flex flex-col p-0.5">
+          <div class="flex flex-col p-0.5 shrink-0">
             <div class="flex h-7 items-center gap-2 rounded-sm pl-3 pr-2.5 text-v2-icon-icon-muted">
               <Icon name="magnifying-glass" size="small" class="shrink-0" />
               <input
@@ -428,8 +429,8 @@ export function ModelSelectorPopoverV2(props: {
               </Show>
             </div>
           </div>
-          <div class="h-px bg-v2-border-border-muted" />
-          <ScrollView data-slot="model-selector-scroll" class="max-h-[220px] min-h-0">
+          <div class="h-px shrink-0 bg-v2-border-border-muted" />
+          <ScrollView data-slot="model-selector-scroll" class="min-h-0 flex-1">
             <div class="flex flex-col p-0.5 pt-0">
               <Show
                 when={models().length > 0}
@@ -492,8 +493,8 @@ export function ModelSelectorPopoverV2(props: {
               </Show>
             </div>
           </ScrollView>
-          <div class="h-px bg-v2-border-border-muted" />
-          <div class="flex flex-col p-0.5">
+          <div class="h-px shrink-0 bg-v2-border-border-muted" />
+          <div class="flex flex-col p-0.5 shrink-0">
             <MenuV2.Item
               data-option-key={manageKey}
               classList={{ "!bg-v2-overlay-simple-overlay-hover": store.active === manageKey }}
