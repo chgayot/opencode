@@ -42,11 +42,14 @@ export function trimSessions(
     .sort((a, b) => cmp(a.id, b.id))
   const roots = all.filter((s) => !s.parentID)
   roots.sort(compareSessionRecent)
-  const children = all.filter((s) => !!s.parentID)
-  const base = roots.slice(0, limit)
-  const recent = takeRecentSessions(roots.slice(limit), SESSION_RECENT_LIMIT, cutoff)
-  const keepRoots = [...base, ...recent]
+  const pinned = roots.filter((s) => s.metadata?.pinned === true)
+  const unpinned = roots.filter((s) => s.metadata?.pinned !== true)
+  const remainingLimit = Math.max(0, limit - pinned.length)
+  const base = unpinned.slice(0, remainingLimit)
+  const recent = takeRecentSessions(unpinned.slice(remainingLimit), SESSION_RECENT_LIMIT, cutoff)
+  const keepRoots = [...pinned, ...base, ...recent]
   const keepRootIds = new Set(keepRoots.map((s) => s.id))
+  const children = all.filter((s) => !!s.parentID)
   const keepChildren = children.filter((s) => {
     if (s.parentID && keepRootIds.has(s.parentID)) return true
     const perms = options.permission[s.id] ?? []

@@ -3,7 +3,7 @@ export * from "./session/schema"
 
 import { DateTime, Effect, Layer, Schema, Context, Stream } from "effect"
 import { ListAnchor } from "@opencode-ai/schema/session"
-import { and, asc, desc, eq, gt, like, lt, or, type SQL } from "drizzle-orm"
+import { and, asc, desc, eq, gt, like, lt, notInArray, or, sql, type SQL } from "drizzle-orm"
 import { ProjectV2 } from "./project"
 import { WorkspaceV2 } from "./workspace"
 import { ModelV2 } from "./model"
@@ -287,6 +287,34 @@ const layer = Layer.effect(
                   and(eq(sortColumn, input.anchor.time), lt(SessionTable.id, input.anchor.id)),
                 )!,
           )
+        } else if (input.limit !== undefined) {
+          const pinnedConditions = [...conditions, sql`json_extract(${SessionTable.metadata}, '$.pinned') = 1`]
+          const pinnedRows = yield* db
+            .select()
+            .from(SessionTable)
+            .where(pinnedConditions.length > 0 ? and(...pinnedConditions) : undefined)
+            .all()
+            .pipe(Effect.orDie)
+
+          const pinnedIDs = new Set(pinnedRows.map((r) => r.id))
+          const remaining = Math.max(0, input.limit - pinnedRows.length)
+
+          const recentConditions = [...conditions]
+          if (pinnedIDs.size > 0) recentConditions.push(notInArray(SessionTable.id, [...pinnedIDs]))
+
+          const recentRows = yield* db
+            .select()
+            .from(SessionTable)
+            .where(recentConditions.length > 0 ? and(...recentConditions) : undefined)
+            .orderBy(
+              order === "asc" ? asc(sortColumn) : desc(sortColumn),
+              order === "asc" ? asc(SessionTable.id) : desc(SessionTable.id),
+            )
+            .limit(remaining)
+            .all()
+            .pipe(Effect.orDie)
+
+          return [...pinnedRows, ...recentRows].map((row) => fromRow(row))
         }
         const query = db
           .select()

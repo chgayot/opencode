@@ -2,10 +2,18 @@ import { describe, expect, test } from "bun:test"
 import type { PermissionRequest, Session } from "@opencode-ai/sdk/v2/client"
 import { trimSessions } from "./session-trim"
 
-const session = (input: { id: string; parentID?: string; created: number; updated?: number; archived?: number }) =>
+const session = (input: {
+  id: string
+  parentID?: string
+  created: number
+  updated?: number
+  archived?: number
+  metadata?: Record<string, unknown>
+}) =>
   ({
     id: input.id,
     parentID: input.parentID,
+    metadata: input.metadata,
     time: {
       created: input.created,
       updated: input.updated,
@@ -55,5 +63,18 @@ describe("trimSessions", () => {
       "root-1",
       "root-2",
     ])
+  })
+
+  test("keeps pinned sessions even when they are older than the limit", () => {
+    const now = 100_000_000
+    const list = [
+      session({ id: "pinned-old", created: now - 50_000_000, metadata: { pinned: true } }),
+      session({ id: "recent-1", created: now - 1_000 }),
+      session({ id: "recent-2", created: now - 2_000 }),
+      session({ id: "old-trimmed", created: now - 50_000_000 }),
+    ]
+
+    const result = trimSessions(list, { limit: 2, permission: {}, now })
+    expect(result.map((x) => x.id)).toEqual(["pinned-old", "recent-1", "recent-2"])
   })
 })

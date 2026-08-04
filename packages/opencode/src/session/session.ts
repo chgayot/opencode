@@ -23,6 +23,7 @@ import { desc } from "drizzle-orm"
 import { like } from "drizzle-orm"
 import { sql } from "drizzle-orm"
 import { inArray } from "drizzle-orm"
+import { notInArray } from "drizzle-orm"
 import { lt } from "drizzle-orm"
 import { or } from "drizzle-orm"
 import type { SQL } from "drizzle-orm"
@@ -996,17 +997,42 @@ function listByProject(
 
   const limit = input.limit ?? 100
 
-  return db
-    .select()
-    .from(SessionTable)
-    .where(and(...conditions))
-    .orderBy(desc(SessionTable.time_updated))
-    .limit(limit)
-    .all()
-    .pipe(
-      Effect.orDie,
-      Effect.map((rows) => rows.map(fromRow)),
-    )
+  if (input.limit === undefined) {
+    return db
+      .select()
+      .from(SessionTable)
+      .where(and(...conditions))
+      .orderBy(desc(SessionTable.time_updated))
+      .all()
+      .pipe(Effect.orDie, Effect.map((rows) => rows.map(fromRow)))
+  }
+
+  return Effect.gen(function* () {
+    const pinnedRows = yield* db
+      .select()
+      .from(SessionTable)
+      .where(and(...conditions, sql`json_extract(${SessionTable.metadata}, '$.pinned') = 1`))
+      .orderBy(desc(SessionTable.time_updated))
+      .all()
+      .pipe(Effect.orDie)
+
+    const pinnedIDs = new Set(pinnedRows.map((r) => r.id))
+    const remaining = Math.max(0, limit - pinnedRows.length)
+
+    const recentConditions = [...conditions]
+    if (pinnedIDs.size > 0) recentConditions.push(notInArray(SessionTable.id, [...pinnedIDs]))
+
+    const recentRows = yield* db
+      .select()
+      .from(SessionTable)
+      .where(and(...recentConditions))
+      .orderBy(desc(SessionTable.time_updated))
+      .limit(remaining)
+      .all()
+      .pipe(Effect.orDie)
+
+    return [...pinnedRows, ...recentRows].map(fromRow)
+  })
 }
 
 export const node = LayerNode.make({
