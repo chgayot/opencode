@@ -1,5 +1,5 @@
 import { LayerNode } from "@opencode-ai/core/effect/layer-node"
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq, like, or, sql } from "drizzle-orm"
 import { Database } from "@opencode-ai/core/database/database"
 import { ProjectDirectoryTable, ProjectTable } from "@opencode-ai/core/project/sql"
 import { ProjectDirectories } from "@opencode-ai/core/project/directories"
@@ -210,6 +210,36 @@ const layer = Layer.effect(
         )
     })
 
+    const rewriteMovedPaths = Effect.fn("Project.rewriteMovedPaths")(function* (
+      projectID: ProjectV2.ID,
+      previous: string,
+      next: AbsolutePath,
+    ) {
+      const stored = previous.replaceAll("\\", "/")
+      yield* db
+        .update(SessionTable)
+        .set({ directory: sql`${next} || substr(${SessionTable.directory}, ${stored.length + 1})` })
+        .where(
+          and(
+            eq(SessionTable.project_id, projectID),
+            or(eq(SessionTable.directory, previous), like(SessionTable.directory, `${stored}/%`)),
+          ),
+        )
+        .run()
+        .pipe(Effect.orDie)
+      yield* db
+        .update(WorkspaceTable)
+        .set({ directory: sql`${next} || substr(${WorkspaceTable.directory}, ${stored.length + 1})` })
+        .where(
+          and(
+            eq(WorkspaceTable.project_id, projectID),
+            or(eq(WorkspaceTable.directory, stored), like(WorkspaceTable.directory, `${stored}/%`)),
+          ),
+        )
+        .run()
+        .pipe(Effect.orDie)
+    })
+
     const fromDirectory = Effect.fn("Project.fromDirectory")(function* (directory: string) {
       yield* Effect.logInfo("fromDirectory", { directory })
 
@@ -232,9 +262,17 @@ const layer = Layer.effect(
 
       if (flags.experimentalIconDiscovery) yield* discover(existing).pipe(Effect.ignore, Effect.forkIn(scope))
 
+      // The stored worktree can vanish when the checkout is moved on disk.
+      // Opening the project from its new directory adopts that directory and
+      // rewrites the stale per-session paths below.
+      const moved =
+        projectID !== ProjectV2.ID.global &&
+        existing.worktree !== data.directory &&
+        !(yield* fs.exists(existing.worktree).pipe(Effect.orDie))
+
       const result: Info = {
         ...existing,
-        worktree: projectID === ProjectV2.ID.global ? worktree : existing.worktree,
+        worktree: projectID === ProjectV2.ID.global ? worktree : moved ? data.directory : existing.worktree,
         vcs: data.vcs?.type ?? fakeVcs,
         time: { ...existing.time, updated: Date.now() },
       }
@@ -296,6 +334,8 @@ const layer = Layer.effect(
           .run()
           .pipe(Effect.orDie)
       }
+
+      if (moved) yield* rewriteMovedPaths(projectID, existing.worktree, data.directory)
 
       yield* saveProjectDirectory({
         projectID,
