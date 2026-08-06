@@ -9,7 +9,6 @@ import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { getFilename } from "@opencode-ai/core/util/path"
 import { A, useParams } from "@solidjs/router"
 import { type Accessor, createMemo, For, type JSX, Match, Show, Switch } from "solid-js"
-import { createStore } from "solid-js/store"
 import { useServerSync } from "@/context/server-sync"
 import { useLanguage } from "@/context/language"
 import { getAvatarColors, type LocalProject, useLayout } from "@/context/layout"
@@ -19,8 +18,7 @@ import { messageAgentColor } from "@/utils/agent"
 import { sessionTitle } from "@/utils/session-title"
 import { sessionPermissionRequest } from "../session/composer/session-request-tree"
 import { childSessionOnPath, getProjectAvatarSource, hasProjectPermissions } from "./helpers"
-import { isPinned, getSessionColor, togglePin, setSessionColor } from "@/utils/session-metadata"
-import { SessionColorPicker } from "./session-color-picker"
+import { isPinned, getSessionColor, togglePin, setSessionColor, nextSessionColor } from "@/utils/session-metadata"
 
 export const ProjectIcon = (props: {
   project: LocalProject
@@ -155,7 +153,6 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
   const notification = useNotification()
   const permission = usePermission()
   const serverSync = useServerSync()
-  const [colorState, setColorState] = createStore({ open: false })
   const unseenCount = createMemo(() => notification.session.unseenCount(props.session.id))
   const hasError = createMemo(() => notification.session.unseenHasError(props.session.id))
   const [sessionStore] = serverSync().child(props.session.directory)
@@ -268,32 +265,24 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
                   }}
                 />
               </Tooltip>
-              <SessionColorPicker
-                current={getSessionColor(props.session)}
-                open={colorState.open}
-                onOpenChange={(open) => setColorState("open", open)}
-                onSelect={(color) => {
-                  void setSessionColor(props.session, color, props.updateSession)
-                  setColorState("open", false)
-                }}
-              >
-                <Tooltip
-                  value={getSessionColor(props.session) ? language.t("common.removeColor") : language.t("common.setColor")}
-                  placement="top"
-                >
-                  <IconButton
-                    variant="ghost"
-                    class="size-6 rounded-md shrink-0 transition-opacity group-hover/session:opacity-100 group-hover/session:pointer-events-auto"
-                    classList={{
-                      "opacity-100 pointer-events-auto": !!getSessionColor(props.session) || props.mobile,
-                      "opacity-0 pointer-events-none": !getSessionColor(props.session) && !props.mobile,
-                    }}
-                    aria-label={language.t("common.setColor")}
-                    style={getSessionColor(props.session) ? { color: getSessionColor(props.session) } : undefined}
-                    icon={getSessionColor(props.session) ? "circle-solid" : "circle-outline"}
-                  />
-                </Tooltip>
-              </SessionColorPicker>
+              <Tooltip value={language.t("common.setColor")} placement="top">
+                <IconButton
+                  variant="ghost"
+                  class="size-6 rounded-md shrink-0 transition-opacity group-hover/session:opacity-100 group-hover/session:pointer-events-auto"
+                  classList={{
+                    "opacity-100 pointer-events-auto": !!getSessionColor(props.session) || props.mobile,
+                    "opacity-0 pointer-events-none": !getSessionColor(props.session) && !props.mobile,
+                  }}
+                  aria-label={language.t("common.setColor")}
+                  style={getSessionColor(props.session) ? { color: getSessionColor(props.session) } : undefined}
+                  icon={getSessionColor(props.session) ? "circle-solid" : "circle-outline"}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    void setSessionColor(props.session, nextSessionColor(getSessionColor(props.session)), props.updateSession)
+                  }}
+                />
+              </Tooltip>
               <Tooltip value={isPinned(props.session) ? language.t("common.unpin") : language.t("common.pin")} placement="top">
                 <IconButtonV2
                   variant="ghost"

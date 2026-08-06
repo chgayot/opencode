@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test"
-import { isPinned, getSessionColor, togglePin, setSessionColor, SESSION_COLORS } from "./session-metadata"
+import {
+  isPinned,
+  getSessionColor,
+  togglePin,
+  setSessionColor,
+  nextSessionColor,
+  SESSION_COLORS,
+  SESSION_COLOR_ROTATION,
+} from "./session-metadata"
 import type { Session } from "@opencode-ai/sdk/v2/client"
 
 const baseSession = (overrides?: Partial<Session>): Session =>
@@ -117,5 +125,37 @@ describe("SESSION_COLORS", () => {
     SESSION_COLORS.forEach((color) => {
       expect(color).toMatch(/^#[0-9a-f]{6}$/)
     })
+  })
+})
+
+describe("SESSION_COLOR_ROTATION", () => {
+  test("orders colors as green, orange, red, purple", () => {
+    expect(SESSION_COLOR_ROTATION).toEqual(["#98c379", "#d19a66", "#e06c75", "#c678dd"])
+  })
+
+  test("each entry is part of the full palette", () => {
+    SESSION_COLOR_ROTATION.forEach((color) => {
+      expect(SESSION_COLORS).toContain(color)
+    })
+  })
+})
+
+describe("nextSessionColor", () => {
+  test("no color cycles to the first rotation color (green)", () => {
+    expect(nextSessionColor(undefined)).toBe("#98c379")
+  })
+
+  test("a legacy non-rotation color behaves like no color and cycles to green", () => {
+    expect(nextSessionColor("#61afef")).toBe("#98c379")
+  })
+
+  test("cycles forward through the rotation", () => {
+    expect(nextSessionColor("#98c379")).toBe("#d19a66")
+    expect(nextSessionColor("#d19a66")).toBe("#e06c75")
+    expect(nextSessionColor("#e06c75")).toBe("#c678dd")
+  })
+
+  test("purple cycles back to no color", () => {
+    expect(nextSessionColor("#c678dd")).toBeUndefined()
   })
 })

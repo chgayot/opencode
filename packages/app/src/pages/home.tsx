@@ -70,8 +70,7 @@ import { archiveHomeSession } from "./home-session-archive"
 import { shouldOpenSessionInBackground } from "./home-session-open"
 import { showToast } from "@/utils/toast"
 import { fileManagerApp } from "@/utils/file-manager"
-import { isPinned, getSessionColor, togglePin, setSessionColor } from "@/utils/session-metadata"
-import { SessionColorPicker } from "@/pages/layout/session-color-picker"
+import { isPinned, getSessionColor, togglePin, setSessionColor, nextSessionColor } from "@/utils/session-metadata"
 
 const HOME_SESSION_LIMIT = 64
 const HOME_SESSION_HEADER_STICKY_TOP = 12
@@ -1456,7 +1455,6 @@ function HomeSessionRow(props: {
   const language = useLanguage()
   const title = createMemo(() => sessionTitle(props.record.session.title) || props.record.session.id)
   const showProjectName = () => props.showProjectName && props.record.projectName
-  const [colorState, setColorState] = createStore({ open: false })
   const color = () => getSessionColor(props.record.session)
   const hasActiveActions = () => isPinned(props.record.session) || !!color()
 
@@ -1503,30 +1501,23 @@ function HomeSessionRow(props: {
         class="hover-reveal absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-md bg-v2-background-bg-base px-0.5 group-hover/session:opacity-100 group-hover/session:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto group-hover/session:bg-v2-overlay-simple-overlay-hover focus-within:bg-v2-overlay-simple-overlay-hover data-[selected=true]:opacity-100 data-[selected=true]:pointer-events-auto"
         data-selected={hasActiveActions() ? "true" : undefined}
       >
-        <SessionColorPicker
-          current={color()}
-          open={colorState.open}
-          onOpenChange={(open) => setColorState("open", open)}
-          onSelect={(c) => {
-            void setSessionColor(props.record.session, c, props.updateSession)
-            setColorState("open", false)
-          }}
-        >
-          <TooltipV2 class="flex shrink-0 items-center" placement="bottom" value={color() ? language.t("common.removeColor") : language.t("common.setColor")}>
-            <IconButtonV2
-              data-action="home-session-color"
-              variant="ghost-muted"
-              size="large"
-              icon={<IconV2 name={color() ? "circle-solid" : "circle-outline"} style={color() ? { color: color() } : undefined} />}
-              aria-label={language.t("common.setColor")}
-              class="group-hover/session:opacity-100 group-hover/session:pointer-events-auto"
-              classList={{
-                "opacity-100 pointer-events-auto": !!color(),
-                "opacity-0 pointer-events-none": !color(),
-              }}
-            />
-          </TooltipV2>
-        </SessionColorPicker>
+        <TooltipV2 class="flex shrink-0 items-center" placement="bottom" value={language.t("common.setColor")}>
+          <IconButtonV2
+            data-action="home-session-color"
+            variant="ghost-muted"
+            size="large"
+            icon={<IconV2 name={color() ? "circle-solid" : "circle-outline"} style={color() ? { color: color() } : undefined} />}
+            aria-label={language.t("common.setColor")}
+            class="group-hover/session:opacity-100 group-hover/session:pointer-events-auto"
+            classList={{
+              "opacity-100 pointer-events-auto": !!color(),
+              "opacity-0 pointer-events-none": !color(),
+            }}
+            onClick={() => {
+              void setSessionColor(props.record.session, nextSessionColor(color()), props.updateSession)
+            }}
+          />
+        </TooltipV2>
         <TooltipV2 class="flex shrink-0 items-center" placement="bottom" value={isPinned(props.record.session) ? language.t("common.unpin") : language.t("common.pin")}>
           <IconButtonV2
             data-action="home-session-pin"
