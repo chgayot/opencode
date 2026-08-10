@@ -1,0 +1,16 @@
+services:
+  opencode:
+    build: .
+    image: opencode-server
+    container_name: opencode
+    restart: unless-stopped
+    ports:
+      - "4096:4096"
+    environment:
+      OPENCODE_SERVER_PASSWORD: ${OPENCODE_SERVER_PASSWORD:-}
+    volumes:
+      - opencode-data:/root/.local/share/opencode
+      - ./workspace:/workspace
+
+volumes:
+  opencode-data:
