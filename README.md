@@ -49,8 +49,27 @@ This fork is based on the **V1 server interface** and focuses on keeping that si
 
 - **Conversation pinning** — Pin sessions in the sidebar so your most important or in-progress conversations stay at the top and out of the way of the recency-ordered history.
 - **Conversation colors** — Assign one of ten colors to any session to visually group related work at a glance, with a quick picker in the session menu.
+- **Docker deployment** — A `Dockerfile` and `docker-compose.yml` run the web server + backend as a single container. The compiled binary embeds the web UI (`packages/app` is built by `packages/opencode/script/build.ts` and served at `/` on the same port), so one process serves both the frontend and the HTTP API.
 
 Both features are stored as plain session `metadata` (`pinned` and `color`), so they work with the existing V1 session API and require no changes to the server protocol.
+
+#### Docker
+
+```bash
+# Build and start (listens on 4096, data in the opencode-data volume, ./workspace mounted)
+docker compose up -d --build
+
+# Or build and run manually
+docker build -t opencode-server .
+docker run -d -p 4096:4096 -v opencode-data:/root/.local/share/opencode -v ./workspace:/workspace opencode-server
+```
+
+Notes:
+
+- The web UI loads projects from the workspace mounted at `/workspace` (or via the "Open project" picker).
+- By default the server is unsecured. Set `OPENCODE_SERVER_PASSWORD` (in `docker-compose.yml` or `-e`) to require basic auth.
+- The default `--hostname 0.0.0.0` is required for access from outside the container.
+- Data (sqlite db, logs, caches) is stored under `~/.local/share/opencode`, mounted as the `opencode-data` volume.
 
 ---
 
