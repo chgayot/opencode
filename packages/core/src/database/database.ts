@@ -7,7 +7,7 @@ import { Global } from "../global"
 import { Flag } from "../flag/flag"
 import { isAbsolute, join } from "path"
 import { DatabaseMigration } from "./migration"
-import { InstallationChannel } from "../installation/version"
+import { InstallationChannel, InstallationDefaultDatabase } from "../installation/version"
 import { makeGlobalNode } from "../effect/app-node"
 
 const makeDatabase = EffectDrizzleSqlite.makeWithDefaults()
@@ -44,6 +44,12 @@ export function path() {
   if (Flag.OPENCODE_DB) {
     if (Flag.OPENCODE_DB === ":memory:" || isAbsolute(Flag.OPENCODE_DB)) return Flag.OPENCODE_DB
     return join(Global.Path.data, Flag.OPENCODE_DB)
+  }
+  if (InstallationDefaultDatabase) {
+    if (InstallationDefaultDatabase === ":memory:" || isAbsolute(InstallationDefaultDatabase)) {
+      return InstallationDefaultDatabase
+    }
+    return join(Global.Path.data, InstallationDefaultDatabase)
   }
   if (
     ["latest", "beta", "prod"].includes(InstallationChannel) ||
