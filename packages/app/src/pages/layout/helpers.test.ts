@@ -10,6 +10,7 @@ import { type Session } from "@opencode-ai/sdk/v2/client"
 import {
   childSessionOnPath,
   closeHomeProject,
+  compareSessionTime,
   displayName,
   effectiveWorkspaceOrder,
   errorMessage,
@@ -153,6 +154,65 @@ describe("layout workspace helpers", () => {
     )
 
     expect(result?.id).toBe("workspace")
+  })
+
+  test("sorts recent sessions by persisted update time instead of id", () => {
+    const result = sortedRootSessions(
+      {
+        path: { directory: "/workspace" },
+        session: [
+          session({ id: "ses_z", directory: "/workspace", time: { created: 1, updated: 2, archived: undefined } }),
+          session({ id: "ses_a", directory: "/workspace", time: { created: 1, updated: 3, archived: undefined } }),
+        ],
+      },
+      3,
+    )
+
+    expect(result.map((item) => item.id)).toEqual(["ses_a", "ses_z"])
+  })
+
+  test("keeps pinned sessions first in the legacy project list", () => {
+    const result = sortedRootSessions(
+      {
+        path: { directory: "/workspace" },
+        session: [
+          session({ id: "newer", directory: "/workspace", time: { created: 1, updated: 3, archived: undefined } }),
+          session({
+            id: "pinned-older",
+            directory: "/workspace",
+            metadata: { pinned: true },
+            time: { created: 1, updated: 2, archived: undefined },
+          }),
+        ],
+      },
+      3,
+    )
+
+    expect(result.map((item) => item.id)).toEqual(["pinned-older", "newer"])
+  })
+
+  test("uses id only to break equal session timestamps", () => {
+    const sessions = [
+      session({ id: "ses_z", directory: "/workspace", time: { created: 1, updated: 2, archived: undefined } }),
+      session({ id: "ses_a", directory: "/workspace", time: { created: 1, updated: 2, archived: undefined } }),
+    ]
+
+    expect(sessions.sort(compareSessionTime).map((item) => item.id)).toEqual(["ses_a", "ses_z"])
+  })
+
+  test("sorts pinned sessions before unpinned sessions while preserving chronology", () => {
+    const sessions = [
+      session({ id: "newer", directory: "/workspace", time: { created: 1, updated: 3, archived: undefined } }),
+      session({
+        id: "pinned-older",
+        directory: "/workspace",
+        metadata: { pinned: true },
+        time: { created: 1, updated: 2, archived: undefined },
+      }),
+      session({ id: "older", directory: "/workspace", time: { created: 1, updated: 1, archived: undefined } }),
+    ]
+
+    expect(sessions.sort(sortSessions()).map((item) => item.id)).toEqual(["pinned-older", "newer", "older"])
   })
 
   test("detects project permissions with a filter", () => {
@@ -319,49 +379,5 @@ describe("layout workspace helpers", () => {
     expect(errorMessage({ data: { message: "boom" } }, "fallback")).toBe("boom")
     expect(errorMessage(new Error("broken"), "fallback")).toBe("broken")
     expect(errorMessage("unknown", "fallback")).toBe("fallback")
-  })
-})
-
-describe("pinned session sorting", () => {
-  const now = 1_000_000
-  const sort = sortSessions(now)
-
-  test("pinned sessions sort before unpinned sessions", () => {
-    const pinned = session({ id: "a", directory: "/x", metadata: { pinned: true }, time: { created: 100, updated: 100 } })
-    const unpinned = session({ id: "b", directory: "/x", time: { created: 200, updated: 200 } })
-    expect(sort(pinned, unpinned)).toBeLessThan(0)
-    expect(sort(unpinned, pinned)).toBeGreaterThan(0)
-  })
-
-  test("pinned sessions sort by recency within the group", () => {
-    const a = session({ id: "a", directory: "/x", metadata: { pinned: true }, time: { created: 100, updated: 100 } })
-    const b = session({ id: "b", directory: "/x", metadata: { pinned: true }, time: { created: 200, updated: 200 } })
-    expect(sort(b, a)).toBeLessThan(0)
-  })
-
-  test("unpinned sessions sort by recency", () => {
-    const a = session({ id: "a", directory: "/x", time: { created: 100, updated: 200 } })
-    const b = session({ id: "b", directory: "/x", time: { created: 100, updated: 100 } })
-    expect(sort(a, b)).toBeLessThan(0)
-  })
-
-  test("uses created time as fallback when updated is equal", () => {
-    const a = session({ id: "a", directory: "/x", time: { created: 100, updated: 200 } })
-    const b = session({ id: "b", directory: "/x", time: { created: 300, updated: 100 } })
-    expect(sort(a, b)).toBeLessThan(0)
-    expect(sort(b, a)).toBeGreaterThan(0)
-  })
-
-  test("pinned sessions are included in sortedRootSessions", () => {
-    const store = {
-      path: { directory: "/x" },
-      session: [
-        session({ id: "a", directory: "/x", time: { created: 100, updated: 100 } }),
-        session({ id: "b", directory: "/x", metadata: { pinned: true }, time: { created: 200, updated: 200 } }),
-        session({ id: "c", directory: "/x", parentID: "parent", time: { created: 300, updated: 300 } }),
-      ],
-    }
-    const result = sortedRootSessions(store, now)
-    expect(result.map((s) => s.id)).toEqual(["b", "a"])
   })
 })
