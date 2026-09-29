@@ -250,22 +250,9 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
     const layoutTransition = createMemo(() =>
       layoutTransitionState(!!sunset, layoutTransitionEligible(), oldInterfaceRetired(), newInterfaceNoticeDismissed()),
     )
-    const newLayoutDesigns = createMemo(() => {
-      if (layoutUpgrade()) return true
-      if (!ready() && !oldInterfaceRetired()) return legacyNewLayoutDesignsDefault
-      if (!layoutTransitionClassified()) {
-        return resolveNewLayoutDesigns(
-          oldInterfaceRetired(),
-          store.general?.newLayoutDesigns,
-          legacyNewLayoutDesignsDefault,
-        )
-      }
-      return resolveNewLayoutDesigns(
-        oldInterfaceRetired(),
-        store.general?.newLayoutDesigns,
-        layoutTransitionEligible() ? legacyNewLayoutDesignsDefault : newLayoutDesignsDefault,
-      )
-    })
+    // V1-only fork: the new layout is never served. Ignore stored
+    // preferences and upstream sunset/upgrade logic.
+    const newLayoutDesigns = createMemo(() => false)
     const visible = (preference: () => boolean) => createMemo(() => !newLayoutDesigns() || preference())
     const initializeAgentVisibility = (existing: boolean) => {
       const initial = initialAgentVisibility(store.general?.agentVisibilityInitialized, existing, launchState.previous)
@@ -325,12 +312,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         "shouldDisplayTabsToast",
         shouldDisplayTabsToast(launchState.previous, platform.version, layoutTransitionEligible()),
       )
-    })
-
-    createEffect(() => {
-      if (!ready() || !oldInterfaceRetired()) return
-      if (store.general?.newLayoutDesigns === true) return
-      setStore("general", "newLayoutDesigns", true)
     })
 
     createEffect(() => {
@@ -419,11 +400,9 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
           setStore("general", "mobileTitlebarPosition", value)
         },
         newLayoutDesigns,
-        setNewLayoutDesigns(value: boolean) {
-          const next = oldInterfaceRetired() ? true : value
-          if (newLayoutDesigns() === next) return
-          setStore("general", "newLayoutDesigns", next)
-          if (typeof window !== "undefined") setTimeout(() => window.location.reload())
+        setNewLayoutDesigns(_value: boolean) {
+          // V1-only fork: ignore requests to enable the new layout.
+          if (store.general?.newLayoutDesigns !== false) setStore("general", "newLayoutDesigns", false)
         },
         layoutTransitionClassified,
         setOldLayoutEligible(eligible: boolean) {
